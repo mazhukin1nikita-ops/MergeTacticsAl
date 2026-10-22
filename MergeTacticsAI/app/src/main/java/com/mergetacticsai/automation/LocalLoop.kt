@@ -185,7 +185,7 @@ class LocalLoop(
 
     private suspend fun loop() {
         while (true) {
-            delay(80)
+            delay(Timing.loopDelayMs)
             val st = controller.state.value
             if (st !in active) {
                 if (st == AgentState.STOPPED || st == AgentState.ERROR) break
@@ -196,6 +196,7 @@ class LocalLoop(
                 controller.transition(AgentState.ERROR); break
             }
             val bmp = frame() ?: continue
+            runCatching { com.mergetacticsai.record.ScreenRecorder.onFrame(bmp) }
             try {
                 step(bmp)
             } catch (e: CancellationException) { throw e
@@ -525,8 +526,8 @@ class LocalLoop(
                 journal?.outcome(p.jid, true, "картинка карточки изменилась — покупка прошла")
                 buyFails = 0; pendingBuy = null
                 p.cost?.let { cst -> elixirCache?.let { (e, t) -> elixirCache = (e - cst).coerceAtLeast(0) to t } }
-            } else if (now - p.at > 600) {
-                journal?.outcome(p.jid, false, "картинка карточки не изменилась за 0,6 с — покупка не подтверждена")
+            } else if (now - p.at > Timing.verifyDelayMs) {
+                journal?.outcome(p.jid, false, "картинка карточки не изменилась за ${Timing.verifyDelayMs} мс — покупка не подтверждена")
                 buyFails++; pendingBuy = null
             } else return
         }
@@ -639,7 +640,7 @@ class LocalLoop(
                 }
                 if (ok) log("Слияние не произошло само — сливаю слоты ${i + 1} и ${j + 1}")
                 pairSince[key] = now
-                delay(300); return
+                delay(Timing.mergeDelayMs); return
             }
         }
         pairSince.keys.retainAll(seenPairs)
@@ -679,7 +680,7 @@ class LocalLoop(
                         log("Выставляю на поле (ряд ${target.row - HexGrid.FIRST_ROW + 1}, клетка ${target.col + 1})" + if (twoStar[slot]) " 2★" else "")
                         pendingPlace = PendingPlace(slot, ix, System.currentTimeMillis(), unit)
                     }
-                    delay(150); return
+                    delay(Timing.placeDelayMs); return
                 }
             }
         }
@@ -758,7 +759,7 @@ class LocalLoop(
                     val jid = journal?.log("SELL", "Продажа: слот ${sellSlot + 1}", reason, "Войско: " + (held[sellSlot]?.troopId?.let { k.troops[it]?.name } ?: "не опознано") + "\n2★: " + twoStar[sellSlot] + "\nСкамейка полна: " + benchFull, "PLANNED") ?: -1L
                     pendingSell = PendingSell(sellSlot, System.currentTimeMillis(), held[sellSlot], jid)
                 }
-                delay(200); return
+                delay(Timing.sellDelayMs); return
             }
         }
 
@@ -777,7 +778,7 @@ class LocalLoop(
                         "Войско: " + (held[s2]?.troopId?.let { k.troops[it]?.name } ?: "не опознано"), "PLANNED") ?: -1L
                     pendingSell = PendingSell(s2, System.currentTimeMillis(), held[s2], jid)
                 }
-                delay(200); return
+                delay(Timing.sellDelayMs); return
             }
         }
 
@@ -870,6 +871,6 @@ class LocalLoop(
                 "Цена: ${pc.cost?.let { "$it эликсира" } ?: "не прочитана"}\nСвойство: ${pc.trait?.let { traitName(it, k) } ?: "не определено"}\nСлияние: ${pc.arrow}\n" + planDetails, "PLANNED") ?: -1L
             pendingBuy = PendingBuy(pick, sigs[pick], pc.cost, pc.trait, pc.troopId, System.currentTimeMillis(), jid)
         }
-        delay(100)
+        delay(Timing.buyDelayMs)
     }
 }

@@ -375,6 +375,8 @@ fun SettingsScreen(
 
         item { HubCard("Обучение карточек", "Назвать карточки, которые бот сохранил во время игры") { onOpen("learn") } }
 
+        item { HubCard("Сетевые тесты", "Симуляция офлайн, задержки и проверка восстановления") { onOpen("diagnostics") } }
+
         item {
             Text("Версия $version", style = MaterialTheme.typography.bodySmall)
             Text("Автоматизация может противоречить правилам игры и привести к ограничениям аккаунта.", style = MaterialTheme.typography.bodySmall)

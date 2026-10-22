@@ -16,12 +16,12 @@ object Timing {
     )
 
     /** User-adjustable delays (milliseconds). Values persist through SettingsRepository. */
-    @Volatile var buyDelayMs: Long = 350L
-    @Volatile var placeDelayMs: Long = 300L
-    @Volatile var sellDelayMs: Long = 450L
-    @Volatile var mergeDelayMs: Long = 350L
-    @Volatile var verifyDelayMs: Long = 300L
-    @Volatile var loopDelayMs: Long = 100L
+    @Volatile var buyDelayMs: Long = 100L
+    @Volatile var placeDelayMs: Long = 150L
+    @Volatile var sellDelayMs: Long = 200L
+    @Volatile var mergeDelayMs: Long = 300L
+    @Volatile var verifyDelayMs: Long = 600L
+    @Volatile var loopDelayMs: Long = 80L
 
     fun configure(buy: Long, place: Long, sell: Long, merge: Long, verify: Long, loop: Long) {
         buyDelayMs = buy.coerceIn(0L, 2500L)

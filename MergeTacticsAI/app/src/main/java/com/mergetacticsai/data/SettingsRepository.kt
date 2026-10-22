@@ -22,12 +22,12 @@ class SettingsRepository(context: Context) {
     fun apiKey(): String = p.getString("apiKey", "") ?: ""
     fun maxPerHour(): Int = p.getInt("maxPerHour", 120)
     fun minIntervalMs(): Long = p.getLong("minIntervalMs", 6000L)
-    fun timingBuy() = p.getLong("timingBuy", 350L)
-    fun timingPlace() = p.getLong("timingPlace", 300L)
-    fun timingSell() = p.getLong("timingSell", 450L)
-    fun timingMerge() = p.getLong("timingMerge", 350L)
-    fun timingVerify() = p.getLong("timingVerify", 300L)
-    fun timingLoop() = p.getLong("timingLoop", 100L)
+    fun timingBuy() = p.getLong("timingBuy", 100L)
+    fun timingPlace() = p.getLong("timingPlace", 150L)
+    fun timingSell() = p.getLong("timingSell", 200L)
+    fun timingMerge() = p.getLong("timingMerge", 300L)
+    fun timingVerify() = p.getLong("timingVerify", 600L)
+    fun timingLoop() = p.getLong("timingLoop", 80L)
     fun saveTimings(buy: Long, place: Long, sell: Long, merge: Long, verify: Long, loop: Long) {
         p.edit().putLong("timingBuy", buy.coerceIn(0L, 2500L))
             .putLong("timingPlace", place.coerceIn(0L, 2500L))

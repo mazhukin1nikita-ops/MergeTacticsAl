@@ -26,6 +26,8 @@ import com.mergetacticsai.data.Catalog
 import com.mergetacticsai.data.SettingsRepository
 import com.mergetacticsai.ui.PickScreen
 import com.mergetacticsai.ui.BuildPickScreen
+import com.mergetacticsai.ui.DiagnosticsScreen
+import com.mergetacticsai.ui.TimingScreen
 import android.graphics.Bitmap
 import android.net.Uri
 import androidx.activity.result.PickVisualMediaRequest
@@ -239,6 +241,7 @@ class MainActivity : ComponentActivity() {
         com.mergetacticsai.record.ScreenRecorder.init(this)
         recOn = com.mergetacticsai.record.ScreenRecorder.enabled
         repo = SettingsRepository(this)
+        com.mergetacticsai.automation.Timing.configure(repo.timingBuy(), repo.timingPlace(), repo.timingSell(), repo.timingMerge(), repo.timingVerify(), repo.timingLoop())
         controller.setConfig(repo.load())
         keySet = repo.apiKey().isNotBlank()
         maxPerHour = repo.maxPerHour()
@@ -372,6 +375,15 @@ class MainActivity : ComponentActivity() {
                                 onShare = { shareRecord() },
                                 onClear = { com.mergetacticsai.record.ScreenRecorder.clear(); recNote = "Запись очищена" },
                                 onBack = { screen = "main" }, busy = recBusy, note = recNote,
+                            )
+                            "diagnostics" -> DiagnosticsScreen(onBack = { screen = "settings" })
+                            "timing" -> TimingScreen(
+                                initial = listOf(repo.timingBuy(), repo.timingPlace(), repo.timingSell(), repo.timingMerge(), repo.timingVerify(), repo.timingLoop()),
+                                onSave = { v ->
+                                    repo.saveTimings(v[0], v[1], v[2], v[3], v[4], v[5])
+                                    com.mergetacticsai.automation.Timing.configure(v[0], v[1], v[2], v[3], v[4], v[5])
+                                },
+                                onBack = { screen = "main" },
                             )
                             else -> HomeScreen(
                                 state = state, log = log, config = config, useGemini = useGemini,
