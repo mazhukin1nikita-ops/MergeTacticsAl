@@ -80,6 +80,7 @@ class JournalWriter(
             if (prev != null && now - prev < quietMs) return -1L
             lastAt[dedupKey] = now
         }
+        runCatching { com.mergetacticsai.record.ScreenRecorder.event("$kind/$status: $title — $reason") }
         return runCatching {
             j.add(JournalEntry(at = now, session = session, round = round, kind = kind, title = title, reason = reason, details = details, status = status))
         }.getOrDefault(-1L)

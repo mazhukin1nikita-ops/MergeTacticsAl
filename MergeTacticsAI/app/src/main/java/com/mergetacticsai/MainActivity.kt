@@ -86,6 +86,9 @@ class MainActivity : ComponentActivity() {
     private lateinit var localLoop: LocalLoop
     private var useGemini by mutableStateOf(false)
     private var screen by mutableStateOf("main")
+    private var recBusy by mutableStateOf(false)
+    private var recNote by mutableStateOf("")
+    private var recOn by mutableStateOf(true)
     private var rulerSel by mutableStateOf("")
     private var traitSel by mutableStateOf(emptySet<String>())
     private var modSel by mutableStateOf(emptySet<String>())
@@ -233,6 +236,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        com.mergetacticsai.record.ScreenRecorder.init(this)
+        recOn = com.mergetacticsai.record.ScreenRecorder.enabled
         repo = SettingsRepository(this)
         controller.setConfig(repo.load())
         keySet = repo.apiKey().isNotBlank()
@@ -360,6 +365,14 @@ class MainActivity : ComponentActivity() {
                             "odds" -> OddsScreen(oddsCtl, onBack = { screen = "main" })
                             "adapt" -> com.mergetacticsai.ui.AdaptScreen(adaptCtl, onBack = { screen = "main" })
                             "journal" -> com.mergetacticsai.ui.JournalScreen(journalDb, onBack = { screen = "main" })
+                            "record" -> com.mergetacticsai.ui.RecordScreen(
+                                enabled = recOn,
+                                onToggle = { recOn = it; com.mergetacticsai.record.ScreenRecorder.setEnabled(it) },
+                                stats = { com.mergetacticsai.record.ScreenRecorder.stats() },
+                                onShare = { shareRecord() },
+                                onClear = { com.mergetacticsai.record.ScreenRecorder.clear(); recNote = "Запись очищена" },
+                                onBack = { screen = "main" }, busy = recBusy, note = recNote,
+                            )
                             else -> HomeScreen(
                                 state = state, log = log, config = config, useGemini = useGemini,
                                 captureOn = ScreenCaptureService.running, accessibilityOn = GameAccessibilityService.instance != null,
@@ -383,6 +396,35 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 }
+            }
+        }
+    }
+
+    /** Собирает архив записи (кадры, хронология, журнал решений, лог) и открывает системное окно «Отправить». */
+    private fun shareRecord() {
+        if (recBusy) return
+        recBusy = true; recNote = ""
+        scope.launch {
+            val fmt = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US)
+            val journalText = runCatching {
+                journalDb.recent(500).asReversed().joinToString("\n\n") { e ->
+                    fmt.format(java.util.Date(e.at)) + " [" + e.kind + "/" + e.status + "] " + (e.round?.let { "раунд $it " } ?: "") + e.title +
+                        "\nПричина: " + e.reason + (if (e.outcome.isNotEmpty()) "\nИтог: " + e.outcome else "") + (if (e.details.isNotEmpty()) "\n" + e.details else "")
+                }
+            }.getOrDefault("")
+            val extra = mapOf("journal.txt" to journalText, "log.txt" to Logger.text())
+            val zip = runCatching { com.mergetacticsai.record.ScreenRecorder.export(extra, listOf("Версия: " + versionName())) }.getOrNull()
+            withContext(Dispatchers.Main) {
+                recBusy = false
+                if (zip == null) { recNote = "Не удалось собрать архив или записывать нечего. Запустите бота и дайте ему поработать."; return@withContext }
+                try {
+                    val uri = androidx.core.content.FileProvider.getUriForFile(this@MainActivity, packageName + ".fileprovider", zip)
+                    val send = Intent(Intent.ACTION_SEND).apply {
+                        type = "application/zip"; putExtra(Intent.EXTRA_STREAM, uri); addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+                    startActivity(Intent.createChooser(send, "Отправить запись"))
+                    recNote = "Архив готов: " + zip.name
+                } catch (e: Exception) { recNote = "Не удалось открыть окно отправки: " + e.message }
             }
         }
     }

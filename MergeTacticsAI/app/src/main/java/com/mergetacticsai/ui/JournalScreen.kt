@@ -14,6 +14,19 @@ import com.mergetacticsai.journal.JournalEntry
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
+import android.widget.Toast
+
+private fun entryText(e: JournalEntry, fmt: SimpleDateFormat): String = buildString {
+    append(fmt.format(Date(e.at))).append(" · ")
+    e.round?.let { append("раунд ").append(it).append(" · ") }
+    append(KIND[e.kind] ?: e.kind).append(" · ").append(STATUS[e.status] ?: e.status).append('\n')
+    append(e.title).append('\n').append("Причина: ").append(e.reason)
+    if (e.outcome.isNotEmpty()) append('\n').append("Итог: ").append(e.outcome)
+    if (e.details.isNotEmpty()) append('\n').append(e.details)
+}
 
 private val STATUS = mapOf("PLANNED" to "решено, итога нет", "DONE" to "выполнено", "FAILED" to "не получилось", "INFO" to "справка")
 private val KIND = mapOf(
@@ -33,6 +46,8 @@ fun JournalScreen(
     var items by remember { mutableStateOf(journal.recent(200)) }
     var open by remember { mutableStateOf<Long?>(null) }
     val fmt = remember { SimpleDateFormat("HH:mm:ss", Locale("ru")) }
+    val clip = LocalClipboardManager.current
+    val ctx = LocalContext.current
     run {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             item {
@@ -45,6 +60,11 @@ fun JournalScreen(
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(onClick = { items = journal.recent(200) }) { Text("Обновить") }
                     OutlinedButton(onClick = { journal.clear(); items = emptyList() }) { Text("Очистить") }
+                    OutlinedButton(onClick = {
+                        items = journal.recent(200)
+                        clip.setText(AnnotatedString(items.asReversed().joinToString("\n\n") { entryText(it, fmt) }))
+                        Toast.makeText(ctx, "Журнал скопирован (${items.size})", Toast.LENGTH_SHORT).show()
+                    }) { Text("Копировать") }
                 }
                 Text("Записей: ${journal.count()}. Файл базы хранится только на этом устройстве.", style = MaterialTheme.typography.bodySmall)
             }
@@ -74,14 +94,14 @@ fun JournalScreen(
                 }
             }
             if (items.isEmpty()) item { Text("Пока пусто: записи появляются, когда бот принимает решения.") }
-            items(items, key = { it.id }) { e -> EntryCard(e, fmt, open == e.id) { open = if (open == e.id) null else e.id } }
+            items(items, key = { it.id }) { e -> EntryCard(e, fmt, open == e.id, onCopy = { clip.setText(AnnotatedString(entryText(e, fmt))); Toast.makeText(ctx, "Скопировано", Toast.LENGTH_SHORT).show() }) { open = if (open == e.id) null else e.id } }
         }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun EntryCard(e: JournalEntry, fmt: SimpleDateFormat, expanded: Boolean, onClick: () -> Unit) {
+private fun EntryCard(e: JournalEntry, fmt: SimpleDateFormat, expanded: Boolean, onCopy: () -> Unit, onClick: () -> Unit) {
     Card(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
@@ -93,6 +113,7 @@ private fun EntryCard(e: JournalEntry, fmt: SimpleDateFormat, expanded: Boolean,
             if (e.outcome.isNotEmpty()) Text("Итог: ${e.outcome}", style = MaterialTheme.typography.bodySmall)
             if (expanded && e.details.isNotEmpty()) Text(e.details, style = MaterialTheme.typography.bodySmall)
             else if (e.details.isNotEmpty()) Text("Нажмите, чтобы раскрыть подробности", style = MaterialTheme.typography.labelSmall)
+            TextButton(onClick = onCopy) { Text("Копировать запись") }
         }
     }
 }

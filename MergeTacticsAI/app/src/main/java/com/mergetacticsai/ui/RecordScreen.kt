@@ -27,7 +27,7 @@ fun RecordScreen(
                             Text("Записывать, пока бот работает", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
                             Switch(checked = on, onCheckedChange = { on = it; onToggle(it) })
                         }
-                        Text("Это не видео, а кадры экрана и хронология действий бота: что он купил, поставил, продал и почему. Кадры пишутся чаще сразу после действий. Хранятся последние 300 кадров.", style = MaterialTheme.typography.bodySmall)
+                        Text("Это не видео, а кадры экрана (пишутся только пока бот запущен и включён захват экрана) и хронология действий бота: что он купил, поставил, продал и почему. Кадры пишутся чаще сразу после действий. Хранятся последние 300 кадров.", style = MaterialTheme.typography.bodySmall)
                         Text("Сохранено кадров: ${s.first}, событий: ${s.second}", style = MaterialTheme.typography.bodyMedium)
                     }
                 }
@@ -35,7 +35,7 @@ fun RecordScreen(
             item {
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = onShare, enabled = !busy && (s.first > 0 || s.second > 0), modifier = Modifier.fillMaxWidth()) {
+                        Button(onClick = onShare, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
                             Text(if (busy) "Собираю архив…" else "Отправить запись")
                         }
                         OutlinedButton(onClick = onClear, enabled = !busy, modifier = Modifier.fillMaxWidth()) { Text("Очистить запись") }

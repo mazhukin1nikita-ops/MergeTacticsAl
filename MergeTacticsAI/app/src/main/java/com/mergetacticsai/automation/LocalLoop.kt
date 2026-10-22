@@ -183,6 +183,7 @@ class LocalLoop(
                 controller.transition(AgentState.ERROR); break
             }
             val bmp = frame() ?: continue
+            runCatching { com.mergetacticsai.record.ScreenRecorder.onFrame(bmp) }
             try {
                 step(bmp)
             } catch (e: CancellationException) { throw e

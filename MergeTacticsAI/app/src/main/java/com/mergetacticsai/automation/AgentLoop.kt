@@ -68,6 +68,7 @@ class AgentLoop(
                 controller.transition(AgentState.ERROR); break
             }
             val bmp = frame() ?: continue
+            runCatching { com.mergetacticsai.record.ScreenRecorder.onFrame(bmp) }
             val sig = FrameSignature.of(bmp, ScreenRegions.shop) + FrameSignature.of(bmp, ScreenRegions.elixir)
             val prev = lastSig
             if (prev != null && FrameSignature.diff(prev, sig) <= 12f) { bmp.recycle(); continue }

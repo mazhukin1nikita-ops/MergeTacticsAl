@@ -240,9 +240,19 @@ fun HomeScreen(
             }
         }
 
-        item { Text("Журнал", style = MaterialTheme.typography.titleMedium) }
+        item {
+            val clip = androidx.compose.ui.platform.LocalClipboardManager.current
+            val ctx = androidx.compose.ui.platform.LocalContext.current
+            Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Журнал", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                androidx.compose.material3.OutlinedButton(onClick = {
+                    clip.setText(androidx.compose.ui.text.AnnotatedString(com.mergetacticsai.util.Logger.text()))
+                    android.widget.Toast.makeText(ctx, "Лог скопирован", android.widget.Toast.LENGTH_SHORT).show()
+                }, enabled = log.isNotEmpty()) { Text("Копировать") }
+            }
+        }
         if (log.isEmpty()) item { Text("Пока пусто", style = MaterialTheme.typography.bodySmall) }
-        items(log.take(30)) { Text(it, style = MaterialTheme.typography.bodySmall) }
+        items(log.take(30)) { androidx.compose.foundation.text.selection.SelectionContainer { Text(it, style = MaterialTheme.typography.bodySmall) } }
         item { Spacer(Modifier.height(8.dp)) }
     }
 }
