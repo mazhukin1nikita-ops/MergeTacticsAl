@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Merge Tactics AI</string>
+    <string name="accessibility_description">Нужна, чтобы приложение выполняло нажатия и перетаскивания в игре по вашей команде.</string>
+</resources>

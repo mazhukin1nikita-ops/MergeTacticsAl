@@ -1,0 +1,422 @@
+[
+ {
+  "id": "trait_dummy",
+  "name": "Манекен черт",
+  "cost": 0,
+  "trait": "",
+  "legacy": false,
+  "special": true,
+  "desc": "Появляется в модификаторе «Подвиг манекена». Манекен с 2 случайными чертами.",
+  "rarity": ""
+ },
+ {
+  "id": "echo_clone",
+  "name": "Клон Echo Sage",
+  "cost": 0,
+  "trait": "",
+  "legacy": false,
+  "special": true,
+  "desc": "Раз в раунд заряжается, затем уничтожает цель и окружающих врагов и исчезает до конца раунда. Не занимает слот войска. Доступен, только если правитель — Echo Sage.",
+  "rarity": ""
+ },
+ {
+  "id": "tombstone",
+  "name": "Могила",
+  "cost": 0,
+  "trait": "undead",
+  "legacy": false,
+  "special": true,
+  "desc": "Призывает скелетов, пока не разрушена; после разрушения появляется Королева гробницы. Не занимает слот войска. Доступна, только если правитель — Королева гробницы.",
+  "rarity": ""
+ },
+ {
+  "id": "knight",
+  "name": "Рыцарь",
+  "cost": 2,
+  "trait": "noble",
+  "legacy": false,
+  "special": false,
+  "desc": "Каждые несколько секунд провоцирует всех врагов в радиусе, заставляя атаковать его 2 сек.",
+  "rarity": ""
+ },
+ {
+  "id": "archer",
+  "name": "Лучница",
+  "cost": 2,
+  "trait": "clan",
+  "legacy": false,
+  "special": false,
+  "desc": "После нескольких ударов стрелы наносят бонусный урон до конца раунда (ударов: 6/5/4/3, бонус: 100/100/100/200%).",
+  "rarity": ""
+ },
+ {
+  "id": "goblins",
+  "name": "Гоблины",
+  "cost": 2,
+  "trait": "goblin",
+  "legacy": true,
+  "special": false,
+  "desc": "Скорость и ближний бой гоблинов заменяют броню. LEGACY.",
+  "rarity": ""
+ },
+ {
+  "id": "spear_goblin",
+  "name": "Гоблин-копейщик",
+  "cost": 2,
+  "trait": "goblin",
+  "legacy": false,
+  "special": false,
+  "desc": "Бросает копьё; продаётся за бонусный эликсир, растущий с уровнем слияния.",
+  "rarity": ""
+ },
+ {
+  "id": "bomber",
+  "name": "Подрывник",
+  "cost": 2,
+  "trait": "undead",
+  "legacy": false,
+  "special": false,
+  "desc": "Бросает бомбу (радиус 2). Каждые несколько ударов бомба отскакивает дальше (ударов: 4/3/2/1, отскоков: 2/2/2/4).",
+  "rarity": ""
+ },
+ {
+  "id": "barbarian",
+  "name": "Варвар",
+  "cost": 2,
+  "trait": "clan",
+  "legacy": false,
+  "special": false,
+  "desc": "После нескольких ударов получает бонус скорости ударов и движения до конца раунда (ударов: 6/5/4/3).",
+  "rarity": ""
+ },
+ {
+  "id": "dart_goblin",
+  "name": "Гоблин с дротиками",
+  "cost": 2,
+  "trait": "goblin",
+  "legacy": false,
+  "special": false,
+  "desc": "После нескольких ударов дротики отравляют цель — урон от макс. HP, складывается до 5 раз (ударов: 6/5/4/3, 1/2/3/5%).",
+  "rarity": ""
+ },
+ {
+  "id": "firecracker",
+  "name": "Хлопушка",
+  "cost": 2,
+  "trait": "forest",
+  "legacy": false,
+  "special": false,
+  "desc": "Снаряд взрывается, задевая врагов позади цели в конусе, и каждые несколько ударов отбрасывает цель на 1 клетку.",
+  "rarity": ""
+ },
+ {
+  "id": "skeleton_dragons",
+  "name": "Скелетные драконы",
+  "cost": 4,
+  "trait": "undead",
+  "legacy": true,
+  "special": false,
+  "desc": "Урон в радиусе 2. Начало боя: поглощают 10/20/40/80% HP и урона окружающих союзников. LEGACY.",
+  "rarity": ""
+ },
+ {
+  "id": "mage",
+  "name": "Маг",
+  "cost": 4,
+  "trait": "clan",
+  "legacy": true,
+  "special": false,
+  "desc": "Бросает огненный шар по области. LEGACY.",
+  "rarity": ""
+ },
+ {
+  "id": "mini_pekka",
+  "name": "Mini P.E.K.K.A",
+  "cost": 5,
+  "trait": "boss",
+  "legacy": false,
+  "special": false,
+  "desc": "Стадия 1: блинчик повышает уровень случайному союзнику. Стадия 2: крадёт энергию способностей у врагов.",
+  "rarity": ""
+ },
+ {
+  "id": "royal_ghost",
+  "name": "Королевский призрак",
+  "cost": 2,
+  "trait": "undead",
+  "legacy": false,
+  "special": false,
+  "desc": "Становится невидимым на 3 сек каждые несколько секунд (перезарядка 5/4/3/2 с).",
+  "rarity": ""
+ },
+ {
+  "id": "magic_archer",
+  "name": "Маг-лучник",
+  "cost": 2,
+  "trait": "forest",
+  "legacy": false,
+  "special": false,
+  "desc": "Магическая стрела отражается в следующую цель в радиусе 2 (ударов: 5/4/3/2, отскоков: 2/3/4/5).",
+  "rarity": ""
+ },
+ {
+  "id": "royal_giant",
+  "name": "Royal Giant",
+  "cost": 3,
+  "trait": "noble",
+  "legacy": false,
+  "special": false,
+  "desc": "Каждые несколько ударов отбрасывает окружающих врагов на 1 клетку.",
+  "rarity": ""
+ },
+ {
+  "id": "valkyrie",
+  "name": "Валькирия",
+  "cost": 3,
+  "trait": "clan",
+  "legacy": false,
+  "special": false,
+  "desc": "После нескольких ударов вращается и бьёт окружающих до конца раунда (ударов: 6/5/4/3, радиус 1/2/3/4).",
+  "rarity": ""
+ },
+ {
+  "id": "giant_skeleton",
+  "name": "Гигантский скелет",
+  "cost": 3,
+  "trait": "undead",
+  "legacy": false,
+  "special": false,
+  "desc": "При поражении роняет бомбу, оглушающую врагов в радиусе (урон 200/400/800/1600).",
+  "rarity": ""
+ },
+ {
+  "id": "executioner",
+  "name": "Палач",
+  "cost": 3,
+  "trait": "forest",
+  "legacy": true,
+  "special": false,
+  "desc": "Бросает топор-бумеранг в ближайшую цель. LEGACY.",
+  "rarity": ""
+ },
+ {
+  "id": "electro_giant",
+  "name": "Электро-гигант",
+  "cost": 3,
+  "trait": "electric",
+  "legacy": true,
+  "special": false,
+  "desc": "Электрическое поле вокруг, урон и оглушение каждую секунду. LEGACY.",
+  "rarity": ""
+ },
+ {
+  "id": "musketeer",
+  "name": "Мушкетёр",
+  "cost": 3,
+  "trait": "noble",
+  "legacy": false,
+  "special": false,
+  "desc": "Начало боя: 3 раза стреляет по самому дальнему врагу в радиусе 6, бонусный урон и оглушение.",
+  "rarity": ""
+ },
+ {
+  "id": "giant",
+  "name": "Гигант",
+  "cost": 3,
+  "trait": "clan",
+  "legacy": false,
+  "special": false,
+  "desc": "Каждые несколько секунд бросает ближайшего врага, урон от макс. HP цели (20/30/50/80%).",
+  "rarity": ""
+ },
+ {
+  "id": "goblin_demolisher",
+  "name": "Гоблин-подрывник",
+  "cost": 3,
+  "trait": "goblin",
+  "legacy": false,
+  "special": false,
+  "desc": "Бросается к врагу с наименьшим HP и взрывается при HP ниже 50%, урон по области.",
+  "rarity": ""
+ },
+ {
+  "id": "hog_rider",
+  "name": "Всадник на кабане",
+  "cost": 5,
+  "trait": "rider",
+  "legacy": true,
+  "special": false,
+  "desc": "Начало боя: прыгает вперёд, землетрясение замедляет врагов. LEGACY.",
+  "rarity": ""
+ },
+ {
+  "id": "princess",
+  "name": "Принцесса",
+  "cost": 2,
+  "trait": "noble",
+  "legacy": false,
+  "special": false,
+  "desc": "Стреляет по самому дальнему врагу, урон по области; каждые несколько ударов замедляет врагов на 3 сек.",
+  "rarity": ""
+ },
+ {
+  "id": "bandit",
+  "name": "Бандитка",
+  "cost": 3,
+  "trait": "forest",
+  "legacy": false,
+  "special": false,
+  "desc": "После нескольких ударов совершает рывок к самому дальнему врагу в радиусе 3, оглушая всех на пути.",
+  "rarity": ""
+ },
+ {
+  "id": "baby_dragon",
+  "name": "Малыш-дракон",
+  "cost": 3,
+  "trait": "forest",
+  "legacy": false,
+  "special": false,
+  "desc": "Огненные шары по области; каждая атака даёт союзникам в радиусе 2 бонус скорости.",
+  "rarity": ""
+ },
+ {
+  "id": "witch",
+  "name": "Ведьма",
+  "cost": 3,
+  "trait": "undead",
+  "legacy": false,
+  "special": false,
+  "desc": "Каждые 5 секунд призывает скелетов (2/3/4/8).",
+  "rarity": ""
+ },
+ {
+  "id": "goblin_cage",
+  "name": "Клетка гоблинов",
+  "cost": 3,
+  "trait": "goblin",
+  "legacy": false,
+  "special": false,
+  "desc": "Запирает ближайшего врага в клетке; при разрушении враг и Гоблин-громила выпускаются на арену.",
+  "rarity": ""
+ },
+ {
+  "id": "goblin_machine",
+  "name": "Гоблин-машина",
+  "cost": 4,
+  "trait": "goblin",
+  "legacy": false,
+  "special": false,
+  "desc": "После нескольких ударов запускает ракету в самого дальнего врага (ударов: 4/3/2/1, ракет: 2/3/4/6).",
+  "rarity": ""
+ },
+ {
+  "id": "electro_wizard",
+  "name": "Электро-маг",
+  "cost": 4,
+  "trait": "electric",
+  "legacy": true,
+  "special": false,
+  "desc": "Молнии из рук оглушают нескольких врагов. LEGACY.",
+  "rarity": ""
+ },
+ {
+  "id": "prince",
+  "name": "Принц",
+  "cost": 5,
+  "trait": "rider",
+  "legacy": true,
+  "special": false,
+  "desc": "Начало боя: врывается к ближайшему врагу, бонусный урон и отбрасывание. LEGACY.",
+  "rarity": ""
+ },
+ {
+  "id": "pekka",
+  "name": "П.Е.К.К.А.",
+  "cost": 5,
+  "trait": "boss",
+  "legacy": false,
+  "special": false,
+  "desc": "Стадия 1: взмах поражает всех на линии. Стадия 2: вампиризм и скорость.",
+  "rarity": ""
+ },
+ {
+  "id": "mega_knight",
+  "name": "Мегарыцарь",
+  "cost": 5,
+  "trait": "boss",
+  "legacy": false,
+  "special": false,
+  "desc": "Стадия 1: прыжки с уроном по области и оглушением. Стадия 2: каждый удар отбрасывает и оглушает.",
+  "rarity": ""
+ },
+ {
+  "id": "dark_prince",
+  "name": "Тёмный принц",
+  "cost": 5,
+  "trait": "rider",
+  "legacy": true,
+  "special": false,
+  "desc": "Щит блокирует урон; начало боя: рывок с двойным уроном и оглушением. LEGACY.",
+  "rarity": ""
+ },
+ {
+  "id": "skeleton_king",
+  "name": "Король скелетов",
+  "cost": 4,
+  "trait": "undead",
+  "legacy": false,
+  "special": false,
+  "desc": "Урон врагам в конусе; призывает скелета, если цель уничтожена в течение 2 сек.",
+  "rarity": ""
+ },
+ {
+  "id": "golden_knight",
+  "name": "Золотой рыцарь",
+  "cost": 4,
+  "trait": "noble",
+  "legacy": false,
+  "special": false,
+  "desc": "Рывок к врагу с наименьшим HP после победы над врагом, бонусный урон (50/80/150/500%).",
+  "rarity": ""
+ },
+ {
+  "id": "archer_queen",
+  "name": "Королева лучниц",
+  "cost": 4,
+  "trait": "clan",
+  "legacy": false,
+  "special": false,
+  "desc": "Становится невидимой и делает быстрые выстрелы (целей 2/3/4/6, ударов 4/3/2/1).",
+  "rarity": ""
+ },
+ {
+  "id": "boss_bandit",
+  "name": "Босс-бандит",
+  "cost": 4,
+  "trait": "forest",
+  "legacy": false,
+  "special": false,
+  "desc": "Рывок к целям на расстоянии 3–4 клеток с двойным уроном; каждые несколько ударов отскакивает назад.",
+  "rarity": ""
+ },
+ {
+  "id": "monk",
+  "name": "Монах",
+  "cost": 5,
+  "trait": "boss",
+  "legacy": false,
+  "special": false,
+  "desc": "Стадия 1: каждый 3-й удар отбрасывает цель. Стадия 2: щит, отражающий урон и исцеляющий.",
+  "rarity": ""
+ },
+ {
+  "id": "ram_rider",
+  "name": "Всадница на таране",
+  "cost": 5,
+  "trait": "rider",
+  "legacy": true,
+  "special": false,
+  "desc": "Замедляет цель атакой; начало боя: мчится через арену, отбрасывая врагов. LEGACY.",
+  "rarity": ""
+ }
+]
