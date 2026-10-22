@@ -12,7 +12,25 @@ import kotlinx.coroutines.withContext
 class OcrReader {
     private val rec = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
 
-    private suspend fun text(bmp: Bitmap, l: Float, t: Float, r: Float, b: Float): String =
+    /** Что распознавание увидело в последний раз при чтении эликсира (для лога, когда число не прочиталось). */
+    @Volatile var lastRaw: String = ""
+        private set
+
+    /** Светлые пиксели (цифра) делаем чёрными на белом фоне: так ML Kit читает цифры на цветной капле заметно лучше. */
+    private fun binarize(src: Bitmap, bright: Int): Bitmap {
+        val w = src.width
+        val h = src.height
+        val px = IntArray(w * h)
+        src.getPixels(px, 0, w, 0, 0, w, h)
+        for (i in px.indices) {
+            val c = px[i]
+            val on = ((c shr 16) and 255) > bright && ((c shr 8) and 255) > bright && (c and 255) > bright
+            px[i] = if (on) -0x1000000 else -1
+        }
+        return Bitmap.createBitmap(px, w, h, Bitmap.Config.ARGB_8888)
+    }
+
+    private suspend fun text(bmp: Bitmap, l: Float, t: Float, r: Float, b: Float, bright: Int = -1): String =
         withContext(Dispatchers.Default) {
             val x = (l * bmp.width).toInt().coerceIn(0, bmp.width - 2)
             val y = (t * bmp.height).toInt().coerceIn(0, bmp.height - 2)
@@ -20,12 +38,14 @@ class OcrReader {
             val h = ((b - t) * bmp.height).toInt().coerceIn(2, bmp.height - y)
             val crop = Bitmap.createBitmap(bmp, x, y, w, h)
             val big = Bitmap.createScaledBitmap(crop, w * 4, h * 4, true)
+            val src = if (bright >= 0) binarize(big, bright) else big
             try {
-                Tasks.await(rec.process(InputImage.fromBitmap(big, 0))).text
+                Tasks.await(rec.process(InputImage.fromBitmap(src, 0))).text
             } catch (e: Exception) {
                 ""
             } finally {
                 crop.recycle(); big.recycle()
+                if (src !== big) src.recycle()
             }
         }
 
@@ -35,8 +55,16 @@ class OcrReader {
 
     /** Эликсир 0..10 из золотой капли. */
     suspend fun readElixir(bmp: Bitmap): Int? {
-        val d = fix(text(bmp, 0.819f, 0.923f, 0.917f, 0.969f)).filter { it.isDigit() }.take(2)
-        return d.toIntOrNull()?.takeIf { it in 0..10 }
+        val raws = ArrayList<String>()
+        // Сначала как есть, затем с выделением светлой цифры при двух порогах яркости.
+        for (bright in intArrayOf(-1, 200, 160)) {
+            val raw = text(bmp, 0.819f, 0.923f, 0.917f, 0.969f, bright)
+            raws.add(raw.replace('\n', ' '))
+            val v = fix(raw).filter { it.isDigit() }.take(2).toIntOrNull()?.takeIf { it in 0..10 }
+            if (v != null) { lastRaw = raws.joinToString(" | "); return v }
+        }
+        lastRaw = raws.joinToString(" | ")
+        return null
     }
 
     /** Счётчик юнитов на поле «N/M». */

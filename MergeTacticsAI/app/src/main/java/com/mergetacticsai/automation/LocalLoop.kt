@@ -27,6 +27,7 @@ import com.mergetacticsai.map.PlacedUnit
 import com.mergetacticsai.strategy.HexGrid
 import com.mergetacticsai.strategy.PositionContext
 import com.mergetacticsai.strategy.PositionEngine
+import com.mergetacticsai.strategy.toGrid
 import com.mergetacticsai.strategy.toHex
 import com.mergetacticsai.strategy.PlaceGate
 import com.mergetacticsai.strategy.SwapPlanner
@@ -73,7 +74,8 @@ class LocalLoop(
     /** Журнал решений: что бот сделал, почему и чем кончилось. */
     private val journal: JournalWriter? = null,
 ) {
-    private class Held(val sig: Long?, val cost: Int?, val trait: String?, val troopId: String?)
+    private companion object { const val FOREIGN = "foreign" }
+    private class Held(val sig: Long?, val cost: Int?, val trait: String?, val troopId: String?, val boughtAt: Long = 0L)
     private class PendingBuy(val index: Int, val sig: Long, val cost: Int?, val trait: String?, val troopId: String?, val at: Long, val jid: Long = -1L)
     private class PendingPlace(val slot: Int, val cell: Int, val at: Long, val unit: PlacedUnit? = null)
     private class PendingSell(val slot: Int, val at: Long, val held: Held?, val jid: Long = -1L)
@@ -150,6 +152,16 @@ class LocalLoop(
     private var lastPlan = ""
     private var lastPlanAt = 0L
     private var lastEvalAt = 0L
+    /** Когда последний раз видели матч: бой скрывает скамейку, поэтому «не в матче» дольше 100 с — это уже другой матч. */
+    private var lastInMatchAt = 0L
+    private var lastRoundAt = 0L
+    private var elixirTryAt = 0L
+    private var elixirRawLogAt = 0L
+    private var lastSaveLogAt = 0L
+    /** Сколько чужих войск (не выставленных ботом) снято с поля в этом раунде. */
+    private var foreignRemoved = 0
+    private val orbTapTimes = ArrayDeque<Long>()
+    private var orbPauseLogAt = 0L
 
     fun stop() { job?.cancel(); job = null }
 
@@ -166,6 +178,7 @@ class LocalLoop(
         ownedSigs.clear(); autoBuild = Build(emptySet())
         owned.clear(); loggedUnknown.clear()
         roundNo = 0; abandoned.clear(); elixirCache = null; lastPivotAt = 0L; lastPlan = ""; lastPlanAt = 0L; lastEvalAt = 0L
+        lastInMatchAt = 0L; lastRoundAt = 0L; elixirTryAt = 0L; foreignRemoved = 0; orbTapTimes.clear()
         _info.value = Info()
         job = scope.launch(Dispatchers.Default) { loop() }
     }
@@ -183,7 +196,6 @@ class LocalLoop(
                 controller.transition(AgentState.ERROR); break
             }
             val bmp = frame() ?: continue
-            runCatching { com.mergetacticsai.record.ScreenRecorder.onFrame(bmp) }
             try {
                 step(bmp)
             } catch (e: CancellationException) { throw e
@@ -212,9 +224,16 @@ class LocalLoop(
         if (last != null && abs(last.x - o.x) < 0.05f && abs(last.y - o.y) < 0.05f) orbRepeat++ else orbRepeat = 0
         lastOrb = o
         if (orbRepeat >= 3) return false
+        val nowOrb = System.currentTimeMillis()
+        while (orbTapTimes.isNotEmpty() && nowOrb - orbTapTimes.first() > 20000) orbTapTimes.removeFirst()
+        if (orbTapTimes.size >= 6) {
+            // Слишком много нажатий подряд — скорее всего, зацикливание: даём паузу.
+            if (nowOrb - orbPauseLogAt > 20000) { orbPauseLogAt = nowOrb; log("Много нажатий на сферу подряд — пауза, чтобы не зациклиться") }
+            return false
+        }
         val (w, h) = screen()
         val ok = GestureController.tap(o.x * w, o.y * h)
-        if (ok) log("Нажимаю на сферу")
+        if (ok) { log("Нажимаю на сферу"); orbTapTimes.addLast(nowOrb) }
         delay(300)
         return ok
     }
@@ -225,7 +244,7 @@ class LocalLoop(
             if (!bench[i]) held[i] = null
             else if (!prevBench[i]) {
                 val rb = recentBuy
-                held[i] = if (rb != null && now - rb.at < 4000) Held(rb.sig, rb.cost, rb.trait, rb.troopId) else null
+                held[i] = if (rb != null && now - rb.at < 4000) Held(rb.sig, rb.cost, rb.trait, rb.troopId, rb.at) else null
             }
         }
         prevBench = bench.copyOf()
@@ -247,8 +266,42 @@ class LocalLoop(
 
     private fun close(a: Long, b: Long) = java.lang.Long.bitCount(a xor b) <= CardMemory.MAX_DIST
 
-    /** Сколько разных войск каждого свойства куплено (дубликаты — это слияния и считаются один раз). */
-    private fun ownedTraitCounts(): Map<String, Int> = ownedSigs.map { it.second }.filter { it.isNotEmpty() }.groupingBy { it }.eachCount()
+    /** Свойство войска на поле: настоящее из базы или со значка на карточке. */
+    private fun fieldTrait(u: PlacedUnit, k: LoopKnowledge): String? =
+        if (FieldFixer.isPseudo(u.troopId)) u.troopId.removePrefix(FieldFixer.TRAIT_PREFIX)
+        else k.troops[u.troopId]?.trait?.takeIf { it.isNotEmpty() }
+
+    /**
+     * Сколько РАЗНЫХ войск каждого свойства у нас сейчас (скамейка и поле вместе): это то, что можно собрать.
+     * Проданные не считаются, копии одного войска и слияния считаются один раз.
+     */
+    private fun ownedTraitCounts(extraKey: String? = null, extraTrait: String? = null): Map<String, Int> {
+        val k = knowledge()
+        val byKey = HashMap<String, String>()
+        for (i in 0 until 5) {
+            val h = held[i] ?: continue
+            val t = h.trait?.takeIf { it.isNotEmpty() } ?: continue
+            val key = benchKey(i) ?: continue
+            byKey[key] = t
+        }
+        for (u in board.values) {
+            val t = fieldTrait(u, k) ?: continue
+            byKey[u.troopId] = t
+        }
+        if (extraKey != null && !extraTrait.isNullOrEmpty()) byKey[extraKey] = extraTrait
+        return byKey.values.groupingBy { it }.eachCount()
+    }
+
+    /** Так считает игра для порогов свойств: только войска на поле, которых выставил бот. */
+    private fun fieldTraitCounts(): Map<String, Int> {
+        val k = knowledge()
+        val byKey = HashMap<String, String>()
+        for (u in board.values) {
+            val t = fieldTrait(u, k) ?: continue
+            byKey[u.troopId] = t
+        }
+        return byKey.values.groupingBy { it }.eachCount()
+    }
 
     private fun traitName(id: String, k: LoopKnowledge) = k.traits.firstOrNull { it.id == id }?.name ?: id
 
@@ -262,11 +315,13 @@ class LocalLoop(
         val price = p.cost?.let { "цена $it эликсира" } ?: "цена не прочитана"
         val trait = p.trait?.takeIf { it.isNotEmpty() }
         if (trait == null) { log("Куплено: «$name», $price"); return }
-        val c = ownedTraitCounts()[trait] ?: 0
+        val total = ownedTraitCounts(p.troopId ?: repKey(p.sig), trait)[trait] ?: 0
+        val onField = fieldTraitCounts()[trait] ?: 0
         val tiers = k.traits.firstOrNull { it.id == trait }?.tiers ?: emptyList()
-        val next = tiers.firstOrNull { it > c }
+        val next = tiers.firstOrNull { it > onField }
         log("Куплено: «$name», $price, свойство «${traitName(trait, k)}». " +
-            "Разных войск этого свойства в команде: $c" + (next?.let { ", до порога $it нужно ещё ${it - c}" } ?: ", порог максимальный"))
+            "Разных войск этого свойства: на поле $onField" + (next?.let { " (до порога $it нужно ещё ${it - onField})" } ?: " (порог максимальный)") +
+            ", вместе со скамейкой $total")
     }
 
     /** Узнаём войско по эталонам из фото каталога; результат запоминаем по отпечатку карточки. */
@@ -296,19 +351,28 @@ class LocalLoop(
         troopId ?: trait?.takeIf { it.isNotEmpty() }?.let { FieldFixer.pseudoId(it) }
 
     private fun unitName(k: LoopKnowledge, u: PlacedUnit): String =
-        k.troops[u.troopId]?.name ?: if (FieldFixer.isPseudo(u.troopId)) "войско (${traitName(u.troopId.removePrefix(FieldFixer.TRAIT_PREFIX), k)})" else u.troopId
+        if (u.troopId == FOREIGN) "чужое войско"
+        else k.troops[u.troopId]?.name ?: if (FieldFixer.isPseudo(u.troopId)) "войско (${traitName(u.troopId.removePrefix(FieldFixer.TRAIT_PREFIX), k)})" else u.troopId
 
     private fun heldFor(u: PlacedUnit, k: LoopKnowledge): Held =
-        if (FieldFixer.isPseudo(u.troopId)) Held(null, null, u.troopId.removePrefix(FieldFixer.TRAIT_PREFIX), null)
+        if (u.troopId == FOREIGN) Held(null, null, null, null)
+        else if (FieldFixer.isPseudo(u.troopId)) Held(null, null, u.troopId.removePrefix(FieldFixer.TRAIT_PREFIX), null)
         else Held(null, k.troops[u.troopId]?.cost, k.troops[u.troopId]?.trait?.takeIf { it.isNotEmpty() }, u.troopId)
 
-    /** Эликсир с экрана: читаем не чаще раза в 1,2 с; после покупки значение уменьшаем на цену. */
+    /**
+     * Эликсир с экрана: читаем не чаще раза в 1,2 с; после покупки значение уменьшаем на цену.
+     * Если прочитать не вышло, пользуемся прошлым значением, пока оно не старше 15 с.
+     */
     private suspend fun elixirNow(bmp: Bitmap, now: Long): Int? {
         val c = elixirCache
+        val stale = c?.takeIf { now - it.second < 15000 }?.first
         if (c != null && now - c.second < 1200) return c.first
+        if (now - elixirTryAt < 1200) return stale
+        elixirTryAt = now
         val e = ocr.readElixir(bmp)
-        elixirCache = if (e != null) e to now else null
-        return e
+        if (e != null) { elixirCache = e to now; return e }
+        if (now - elixirRawLogAt > 20000) { elixirRawLogAt = now; log("Эликсир не прочитан, распознавание увидело: «${ocr.lastRaw}»") }
+        return stale
     }
 
     /** Ключ войска для подсчёта копий: настоящий id, а если карточка не узнана — по отпечатку. */
@@ -359,17 +423,29 @@ class LocalLoop(
         val incoming = PlacedUnit(tid, if (bu.twoStar) 2 else 1)
 
         // Сначала те, кто заведомо не нужен сборке; если таких нет — слабее входящего по важности (прежнее правило).
-        val victim: FieldFixer.Victim? = FieldFixer.pickUnneeded(board, occupied, build, plan, troopTrait, costOf, badCells)
-            ?: SwapPlanner.pickVictim(
+        // Выбрана «сборка на 7 карт» — войска из неё с поля не убираем никогда (прежнее правило «слабее входящего» отключено).
+        val strict = k.placeSel.isNotEmpty()
+        var found: FieldFixer.Victim? = FieldFixer.pickUnneeded(board, occupied, build, plan, troopTrait, costOf, badCells)
+        if (found == null && !strict) {
+            found = SwapPlanner.pickVictim(
                 board.filterValues { !FieldFixer.isPseudo(it.troopId) || FieldFixer.isUnneeded(it, build, plan, troopTrait) },
                 occupied, incoming, build, plan, traitOf, costOf, badCells,
             )?.let { FieldFixer.Victim(it.cellIndex, it.unit) }
+        }
+        // Поле занято войсками, которых бот не ставил (стояли раньше или поставлены вручную): при выбранной сборке снимаем и их.
+        var foreign = false
+        if (found == null && strict && foreignRemoved < 3) {
+            val planCells = plan.keys.mapNotNull { it.toGrid() }.map { HexGrid.indexOf(it) }.toSet()
+            val ix = occupied.indices.filter { occupied[it] && it !in board && it !in badCells }.sortedBy { it in planCells }.firstOrNull()
+            if (ix != null) { found = FieldFixer.Victim(ix, PlacedUnit(FOREIGN, 1)); foreign = true }
+        }
+        val victim = found
 
         val name = unitName(k, incoming)
         if (victim == null) {
             if (now - noVictimLogAt > 15000) {
                 noVictimLogAt = now
-                log("Поле заполнено, «$name» из сборки ждёт на скамейке, но убирать некого: нет выставленных ботом войск, которые не нужны сборке")
+                log("Поле заполнено, «$name» из сборки ждёт на скамейке, но убирать некого: на поле нет войск, которые не нужны сборке")
             }
             return false
         }
@@ -377,6 +453,7 @@ class LocalLoop(
         val vName = unitName(k, victim.unit)
         val where = "ряд ${cell.row - HexGrid.FIRST_ROW + 1}, клетка ${cell.col + 1}"
         lastSwapAt = now
+        if (foreign) foreignRemoved++
         val freeSlot = bench.indexOfFirst { !it }
         if (freeSlot >= 0) {
             val ok = act { GestureController.drag(cell.x * w, cell.y * h, ScreenRegions.benchX[freeSlot] * w, ScreenRegions.BENCH_Y * h, 450) }
@@ -397,10 +474,13 @@ class LocalLoop(
     private suspend fun step(bmp: Bitmap) {
         val inMatch = (0 until 5).count { PixelOps.woodFraction(bmp, it) >= 0.15f } >= 4
         if (_info.value.inMatch != inMatch) _info.value = _info.value.copy(inMatch = inMatch)
+        val nowMatch = System.currentTimeMillis()
         if (!inMatch) {
-            if (roundNo != 0) { roundNo = 0; abandoned.clear(); elixirCache = null }
+            // Во время боя скамейка скрыта, и «не в матче» мигает каждый раунд. Новый матч — только после 100 с без матча.
+            if (roundNo != 0 && lastInMatchAt != 0L && nowMatch - lastInMatchAt > 100_000) { roundNo = 0; abandoned.clear(); elixirCache = null; lastInMatchAt = 0L }
             return
         }
+        lastInMatchAt = nowMatch
         if (handleOrb(bmp)) return
 
         val deploy = PixelOps.deployIconFraction(bmp) >= 0.2f
@@ -418,7 +498,10 @@ class LocalLoop(
             return
         }
         controller.transition(AgentState.ANALYZING)
-        if (!wasDeploy) { roundNo++; journal?.setRound(roundNo); runCatching { onRound(roundNo) } }
+        if (!wasDeploy && (roundNo == 0 || System.currentTimeMillis() - lastRoundAt > 15000)) {
+            roundNo++; lastRoundAt = System.currentTimeMillis(); foreignRemoved = 0
+            journal?.setRound(roundNo); runCatching { onRound(roundNo) }
+        }
         wasDeploy = true
         if (!perms().canControlGame) return
 
@@ -431,7 +514,7 @@ class LocalLoop(
 
         if (now - lastDebug > 5000) {
             lastDebug = now
-            val e = ocr.readElixir(bmp)
+            val e = elixirNow(bmp, now)
             log("Вижу: эликсир=${e ?: "?"}, доступно=${afford.joinToString("") { if (it) "✓" else "✗" }}, стрелки=${arrow.joinToString("") { if (it) "↑" else "·" }}, скамейка=${bench.count { it }}/5, поле=${counter?.let { "${it.first}/${it.second}" } ?: "?"}")
         }
 
@@ -475,7 +558,7 @@ class LocalLoop(
             if (!PixelOps.cellOccupied(bmp, HexGrid.cells[p.cell])) {
                 board.remove(p.cell); pendingBoardSell = null; swapFails = 0; boardFullHint = false
                 placeGate.reset(); counter = null; counterAt = 0L; ignoreFullUntil = now + 2500; lastSwapAt = now
-                log("Убрал с поля «${knowledge().troops[p.unit.troopId]?.name ?: p.unit.troopId}» — место свободно")
+                log("Убрал с поля «${unitName(knowledge(), p.unit)}» — место свободно")
             } else if (now - p.at > 1500) {
                 swapFails++; pendingBoardSell = null
                 log("Не удалось убрать войско с поля (попытка $swapFails из 3)")
@@ -535,7 +618,9 @@ class LocalLoop(
                 pol.traits.isNotEmpty() && trait != null -> trait in pol.traits && (troop == null || troop.id in pol.enabled)
                 else -> pol.allows(troop, false)
             }
-            ShopCard(i, sigs[i], cost, trait, troop?.id, afford[i], arrow[i], allowed)
+            // Выбрана «сборка на 7 карт» — покупаем только её войск. Неопознанные карточки не берём: так эликсир не уходит на лишних.
+            val inPick = k.placeSel.isEmpty() || (troop != null && troop.id in k.placeSel)
+            ShopCard(i, sigs[i], cost, trait, troop?.id, afford[i], arrow[i], allowed && inPick)
         }
 
         // 0) Две одинаковые 1★ на скамейке не слились за 4 секунды — тянем один на другого.
@@ -648,10 +733,15 @@ class LocalLoop(
         // 2) Продажа по порядку: 2★ вне сборки → дорогие одиночки → остальные. Продаём, если это 2★ (круг),
         //    скамейка полна, или нужно получить эликсир на карточку со слиянием.
         val arrowSigs = (0..2).filter { arrow[it] }.map { sigs[it] }
-        val sellSlot = CycleStrategy.pickSell(benchUnits, arrowSigs, build)
+        // Только что купленное (меньше 45 с назад) не продаём, пока скамейка не полна: иначе эликсир тратится зря.
+        val benchFull = bench.all { it }
+        val sellPool = if (benchFull) benchUnits else benchUnits.mapIndexed { i, u ->
+            val at = held[i]?.boughtAt ?: 0L
+            if (u != null && at > 0L && now - at < 45000) null else u
+        }
+        val sellSlot = CycleStrategy.pickSell(sellPool, arrowSigs, build)
         if (sellSlot != null && sellFails < 3) {
-            val benchFull = bench.all { it }
-            val needMoney = cards.any { it.arrow && !it.affordable }
+            val needMoney = cards.any { it.arrow && it.allowed && !it.affordable }
             val reason = when {
                 twoStar[sellSlot] -> "2★ вне сборки — продаю, круг даёт эликсир"
                 benchFull -> "скамейка полна — продаю самого дорогого одиночку вне сборки"
@@ -694,7 +784,14 @@ class LocalLoop(
         // 3) Покупка. Бот оценивает несколько сценариев на будущее: купить каждую из карточек или копить эликсир.
         //    Есть пара для слияния — берём; нужной карточки нет — альтернатива; ничто не помогает — копим эликсир.
         val benchHasSpace = bench.any { !it }
-        if (cards.none { it.affordable && it.allowed && (benchHasSpace || it.arrow) }) return
+        if (cards.none { it.affordable && it.allowed && (benchHasSpace || it.arrow) }) {
+            if (k.placeSel.isNotEmpty() && cards.any { it.affordable } && now - lastSaveLogAt > 12000) {
+                lastSaveLogAt = now
+                val unknown = cards.count { it.troopId == null }
+                log("Копим эликсир: в магазине нет карт из выбранной сборки" + (if (unknown > 0) " (не опознано карточек: $unknown — они не покупаются, пока не распознаны)" else ""))
+            }
+            return
+        }
         val op = oddsParams()
         val env = Env(
             elixir = elixirNow(bmp, now), income = op.income,
