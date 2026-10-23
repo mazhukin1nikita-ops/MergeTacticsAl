@@ -162,6 +162,8 @@ class LocalLoop(
     private var foreignRemoved = 0
     private val orbTapTimes = ArrayDeque<Long>()
     private var orbPauseLogAt = 0L
+    private var lastFaultMsg = ""
+    private var lastFaultAt = 0L
 
     fun stop() { job?.cancel(); job = null }
 
@@ -202,6 +204,12 @@ class LocalLoop(
             } catch (e: CancellationException) { throw e
             } catch (e: Exception) {
                 log("Ошибка шага: ${e.message}"); delay(1000)
+                val fm = e.message ?: e.javaClass.simpleName
+                val fnow = System.currentTimeMillis()
+                if (fm != lastFaultMsg || fnow - lastFaultAt > 10000) {
+                    lastFaultMsg = fm; lastFaultAt = fnow
+                    com.mergetacticsai.util.FaultLog.add("Ошибка шага бота: $fm", controller.state.value.name, "цикл продолжил работу")
+                }
             } finally {
                 bmp.recycle()
             }

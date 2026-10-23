@@ -89,6 +89,7 @@ class MainActivity : ComponentActivity() {
     private var useGemini by mutableStateOf(false)
     private var screen by mutableStateOf("main")
     private var recBusy by mutableStateOf(false)
+    private var crashBusy by mutableStateOf(false)
     private var recNote by mutableStateOf("")
     private var recOn by mutableStateOf(true)
     private var rulerSel by mutableStateOf("")
@@ -204,6 +205,60 @@ class MainActivity : ComponentActivity() {
         scope.launch { delay(6000); withContext(Dispatchers.Main) { startAi(silent = true) } }
     }
 
+    /**
+     * Безопасная проверка аварии: резко останавливаем цикл бота, запускаем заново и сверяем настройки до и после.
+     * Игру и приложение не закрываем. Итог попадает в журнал сбоев.
+     */
+    private fun runCrashTest() {
+        if (crashBusy) return
+        crashBusy = true
+        scope.launch {
+            val running = setOf(
+                AgentState.DETECTING_MODE, AgentState.ANALYZING, AgentState.PLANNING, AgentState.EXECUTING,
+                AgentState.WAITING_FOR_BATTLE, AgentState.OBSERVING_BATTLE, AgentState.ROUND_FINISHED,
+            )
+            val before = controller.state.value
+            val wasRunning = before in running
+            val snapBefore = repo.snapshot()
+            val id = com.mergetacticsai.util.FaultLog.add(
+                "Имитация аварии бота", before.name, "выполняется…",
+                "Цикл бота будет остановлен и запущен заново, настройки сверяются до и после.",
+            )
+            val t0 = System.currentTimeMillis()
+            loop.stop(); localLoop.stop()
+            controller.transition(AgentState.ERROR)
+            Logger.log("Тест аварии: цикл бота остановлен")
+            delay(700)
+            val flushed = repo.flush()
+            val diff = com.mergetacticsai.util.SettingsSnapshot.diff(snapBefore, repo.snapshot())
+            val memory = ArrayList<String>()
+            if (repo.placeSel() != placeSel) memory.add("сборка")
+            if (repo.ruler() != rulerSel) memory.add("правитель")
+            if (repo.traits() != traitSel) memory.add("свойства")
+            if (repo.modifiers() != modSel) memory.add("модификаторы")
+            withContext(Dispatchers.Main) {
+                controller.transition(AgentState.IDLE)
+                if (wasRunning) startAi(silent = true)
+            }
+            var restarted = !wasRunning
+            if (wasRunning) {
+                val until = System.currentTimeMillis() + 4000
+                while (System.currentTimeMillis() < until && controller.state.value !in running) delay(200)
+                restarted = controller.state.value in running
+            }
+            val ms = System.currentTimeMillis() - t0
+            val settingsOk = flushed && diff.isEmpty() && memory.isEmpty()
+            val changed = (diff + memory).joinToString(", ")
+            val result = (if (restarted) {
+                if (wasRunning) "бот перезапущен за $ms мс" else "бот не работал, перезапуск не требовался"
+            } else "бот не перезапустился (проверьте разрешения и режим ИИ)") +
+                "; " + (if (settingsOk) "настройки сохранились" else "настройки изменились: " + changed.ifEmpty { "не удалось записать на диск" })
+            com.mergetacticsai.util.FaultLog.update(id, result)
+            Logger.log("Тест аварии: $result")
+            withContext(Dispatchers.Main) { crashBusy = false }
+        }
+    }
+
     private fun startAi(silent: Boolean = false) {
         if (useGemini && repo.apiKey().isBlank()) { if (!silent) Logger.log("Введите API-ключ Gemini или выберите локальный режим"); return }
         if (!perms().canControlGame) { if (!silent) Logger.log("Нужны захват экрана и служба доступности"); return }
@@ -239,6 +294,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         com.mergetacticsai.record.ScreenRecorder.init(this)
+        com.mergetacticsai.util.FaultLog.init(this)
+        com.mergetacticsai.util.FaultSim.reset()
         recOn = com.mergetacticsai.record.ScreenRecorder.enabled
         repo = SettingsRepository(this)
         com.mergetacticsai.automation.Timing.configure(repo.timingBuy(), repo.timingPlace(), repo.timingSell(), repo.timingMerge(), repo.timingVerify(), repo.timingLoop())
@@ -376,7 +433,12 @@ class MainActivity : ComponentActivity() {
                                 onClear = { com.mergetacticsai.record.ScreenRecorder.clear(); recNote = "Запись очищена" },
                                 onBack = { screen = "main" }, busy = recBusy, note = recNote,
                             )
-                            "diagnostics" -> DiagnosticsScreen(onBack = { screen = "settings" })
+                            "diagnostics" -> DiagnosticsScreen(
+                                onBack = { screen = "settings" },
+                                botState = { controller.state.value.name },
+                                onCrashTest = { runCrashTest() },
+                                crashBusy = crashBusy,
+                            )
                             "timing" -> TimingScreen(
                                 initial = listOf(repo.timingBuy(), repo.timingPlace(), repo.timingSell(), repo.timingMerge(), repo.timingVerify(), repo.timingLoop()),
                                 onSave = { v ->

@@ -14,7 +14,11 @@ class RateLimitException(val retryAfterMs: Long) : IOException("Лимит за�
 
 /** Бесплатный ключ берётся в Google AI Studio. Ключ передаётся в заголовке, не в URL. */
 class GeminiProvider(private val apiKey: String, private val model: String = "gemini-2.5-flash") : AIProvider {
-    override suspend fun requestPlan(frameJpeg: ByteArray, prompt: String): String = withContext(Dispatchers.IO) {
+    /** Запрос проходит через безопасный режим тестирования: когда он выключен, ничего не меняется. */
+    override suspend fun requestPlan(frameJpeg: ByteArray, prompt: String): String =
+        com.mergetacticsai.util.FaultSim.gate { realRequest(frameJpeg, prompt) }
+
+    private suspend fun realRequest(frameJpeg: ByteArray, prompt: String): String = withContext(Dispatchers.IO) {
         val url = URL("https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent")
         val image = JSONObject().put("inline_data", JSONObject()
             .put("mime_type", "image/jpeg")

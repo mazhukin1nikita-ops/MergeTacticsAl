@@ -65,6 +65,13 @@ class SettingsRepository(context: Context) {
         e.putInt("maxPerHour", maxPerHour.coerceIn(10, 2000)).apply()
     }
 
+    /** Все настройки как текст (ключ ИИ не раскрывается: только «задан/пусто») — для сверки до и после аварии. */
+    fun snapshot(): Map<String, String> =
+        p.all.filterKeys { it != "apiKey" }.mapValues { it.value.toString() } + ("apiKey" to if (apiKey().isBlank()) "пусто" else "задан")
+
+    /** Дожидается записи всех настроек на диск. */
+    fun flush(): Boolean = p.edit().commit()
+
     fun clearKey() { p.edit().remove("apiKey").apply() }
 
     fun clear() { p.edit().clear().apply() }

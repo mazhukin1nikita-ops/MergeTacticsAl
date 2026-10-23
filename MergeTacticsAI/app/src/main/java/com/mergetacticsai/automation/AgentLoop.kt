@@ -11,6 +11,9 @@ import com.mergetacticsai.ai.StateParser
 import com.mergetacticsai.capture.ScreenCaptureService
 import com.mergetacticsai.strategy.BuyPlanner
 import com.mergetacticsai.strategy.PlacementPlanner
+import com.mergetacticsai.util.FailureTracker
+import com.mergetacticsai.util.FaultLog
+import com.mergetacticsai.util.SimulatedNetworkException
 import com.mergetacticsai.vision.FrameSignature
 import com.mergetacticsai.vision.ScreenRegions
 import kotlinx.coroutines.CancellationException
@@ -44,6 +47,7 @@ class AgentLoop(
     private var sameBuy = 0
     private var lastOrb: Point? = null
     private var orbRepeat = 0
+    private val failures = FailureTracker()
 
     fun stop() { job?.cancel(); job = null }
 
@@ -88,7 +92,21 @@ class AgentLoop(
                 log("Лимит Google (429): пауза ${wait / 1000} с")
                 delay(wait); lastSig = null; continue
             } catch (e: Exception) {
-                log("Ошибка ИИ: ${e.message}"); delay(3000); lastSig = null; continue
+                // Сбой сети или ИИ: ждём всё дольше (3, 6, 12, 24, 30 с), пишем в журнал сбоев и пробуем снова.
+                val wait = failures.onFailure()
+                val sim = e is SimulatedNetworkException
+                log("Ошибка ИИ: ${e.message} — повтор через ${wait / 1000} с")
+                FaultLog.add(
+                    (if (sim) "Сбой сети (симуляция): " else "Сбой запроса ИИ: ") + (e.message ?: e.javaClass.simpleName),
+                    controller.state.value.name,
+                    "бот ждёт и повторяет: через ${wait / 1000} с, сбоев подряд ${failures.consecutive}",
+                )
+                delay(wait); lastSig = null; continue
+            }
+            failures.onSuccess()?.let { r ->
+                val msg = "связь восстановилась: сбоев подряд ${r.failures}, перерыв ${r.downMs / 1000} с"
+                log("ИИ снова отвечает ($msg)")
+                FaultLog.add("Восстановление после сбоев", controller.state.value.name, msg)
             }
             val obs = StateParser.parse(raw).getOrNull()
             if (obs == null) { log("Ответ ИИ не разобран"); continue }
